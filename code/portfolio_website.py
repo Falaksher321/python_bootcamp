@@ -4,9 +4,37 @@ from streamlit_lottie import st_lottie
 import requests
 import time
 import os
+import base64
 
-# Configure page layout and theme
+# Configure page layout and theme (this must be the first Streamlit command)
 st.set_page_config(page_title="Falak Sher - Portfolio", layout="wide", initial_sidebar_state="expanded")
+
+# Function to encode the image
+def get_base64_of_bin_file(bin_file):
+    with open(bin_file, 'rb') as f:
+        data = f.read()
+    return base64.b64encode(data).decode()
+
+# Function to set background image
+def set_bg_hack(main_bg):
+    bin_str = get_base64_of_bin_file(main_bg)
+    page_bg_img = '''
+    <style>
+    .stApp {
+        background-image: url("data:image/png;base64,%s");
+        background-size: cover;
+        background-repeat: no-repeat;
+        background-attachment: fixed;
+    }
+    </style>
+    ''' % bin_str
+    st.markdown(page_bg_img, unsafe_allow_html=True)
+
+# Set the background image
+try:
+    set_bg_hack('images/background.jpg')
+except FileNotFoundError:
+    st.warning("Background image not found. Please check if 'images/background.jpg' exists.")
 
 # Custom CSS for animations and styling
 st.markdown("""
@@ -26,9 +54,13 @@ st.markdown("""
     100% { transform: rotate(0deg); }
 }
 @keyframes glow {
-    0% { box-shadow: 0 0 5px #4CAF50; }
-    50% { box-shadow: 0 0 20px #4CAF50; }
-    100% { box-shadow: 0 0 5px #4CAF50; }
+    0% { box-shadow: 0 0 5px #4CAF50, 0 0 5px #4CAF50 inset; }
+    50% { box-shadow: 0 0 20px #4CAF50, 0 0 20px #4CAF50 inset; }
+    100% { box-shadow: 0 0 5px #4CAF50, 0 0 5px #4CAF50 inset; }
+}
+@keyframes rotate {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
 }
 .fadeIn { animation: fadeIn 1.5s ease-in; }
 .wave { animation: wave 2s infinite; transform-origin: 70% 70%; display: inline-block; }
@@ -41,20 +73,51 @@ st.markdown("""
     background-color: #45a049;
     transform: scale(1.05);
 }
-.stImage > img {
-    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+.profile-pic-container {
+    width: 250px;
+    height: 250px;
+    margin: auto;
+    position: relative;
+    overflow: hidden;
+}
+.profile-pic {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
     transition: transform 0.3s ease-in-out;
     animation: glow 2s infinite;
 }
-.stImage > img:hover {
+.profile-pic:hover {
     transform: scale(1.1);
 }
+.profile-pic-border {
+    position: absolute;
+    top: -5px;
+    left: -5px;
+    right: -5px;
+    bottom: -5px;
+    border: 3px solid #4CAF50;
+    border-radius: 50%;
+    animation: rotate 10s linear infinite;
+}
 body {
-    background-color: #121212;
     color: #ffffff;
 }
 h1, h2, h3, h4, h5, h6 {
     color: #ffffff;
+}
+.stApp > header {
+    background-color: transparent;
+}
+.stApp {
+    background-color: rgba(0,0,0,0.7);
+}
+.stTextInput > div > div > input {
+    color: white;
+}
+.stMarkdown {
+    color: white;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -64,8 +127,15 @@ def load_lottieurl(url):
     r = requests.get(url)
     if r.status_code != 200:
         return None
-    return r.json()
+    lottie_json = r.json()
+    # Set the background to be transparent
+    if 'assets' in lottie_json:
+        for asset in lottie_json['assets']:
+            if 'p' in asset:  # 'p' stands for path, which often defines the background
+                asset['p'] = ''  # Set to empty string to make it transparent
+    return lottie_json
 
+# Load Lottie animations
 lottie_coding = load_lottieurl("https://assets5.lottiefiles.com/packages/lf20_fcfjwiyb.json")
 lottie_github = load_lottieurl("https://assets10.lottiefiles.com/packages/lf20_vnikrcia.json")
 
@@ -84,9 +154,18 @@ with col1:
     st.markdown('</p>', unsafe_allow_html=True)
 
 with col2:
-    st.markdown('<div style="display: flex; justify-content: center; align-items: center; height: 100%;">', unsafe_allow_html=True)
-    st.image("images/murtaza.png", width=250, output_format="PNG", use_column_width=False)
-    st.markdown('</div>', unsafe_allow_html=True)
+    try:
+        with open("images/murtaza.png", "rb") as f:
+            contents = f.read()
+            data_url = base64.b64encode(contents).decode("utf-8")
+            st.markdown(f"""
+            <div class="profile-pic-container">
+                <img src="data:image/png;base64,{data_url}" class="profile-pic">
+                <div class="profile-pic-border"></div>
+            </div>
+            """, unsafe_allow_html=True)
+    except FileNotFoundError:
+        st.warning("Profile picture not found. Please check if 'images/murtaza.png' exists.")
 
 # About Me section
 st.markdown('<h2 class="fadeIn">About Me</h2>', unsafe_allow_html=True)
@@ -114,7 +193,14 @@ with col1:
             st.write(response.text)
 
 with col2:
-    st_lottie(lottie_coding, height=200, key="coding")
+    st.markdown("""
+    <div style="background-color: rgba(255, 255, 255, 0); padding: 10px; border-radius: 10px;">
+    """, unsafe_allow_html=True)
+    if lottie_coding:
+        st_lottie(lottie_coding, height=200, key="coding")
+    else:
+        st.warning("Lottie animation failed to load.")
+    st.markdown("</div>", unsafe_allow_html=True)
 
 st.markdown("---")
 
@@ -123,7 +209,14 @@ st.markdown('<h2 class="fadeIn">GitHub</h2>', unsafe_allow_html=True)
 col1, col2 = st.columns([1, 2])
 
 with col1:
-    st_lottie(lottie_github, height=200, key="github")
+    st.markdown("""
+    <div style="background-color: rgba(255, 255, 255, 0); padding: 10px; border-radius: 10px;">
+    """, unsafe_allow_html=True)
+    if lottie_github:
+        st_lottie(lottie_github, height=200, key="github")
+    else:
+        st.warning("GitHub Lottie animation failed to load.")
+    st.markdown("</div>", unsafe_allow_html=True)
 
 with col2:
     st.markdown('<p class="fadeIn">Check out my projects on <a href="https://github.com/Falaksher321/python_bootcamp" target="_blank">GitHub</a>!</p>', unsafe_allow_html=True)
@@ -132,7 +225,10 @@ st.markdown("---")
 
 # Setup section
 st.markdown('<h2 class="fadeIn">My Setup</h2>', unsafe_allow_html=True)
-st.image("images/setup.jpg", use_column_width=True)
+try:
+    st.image("images/setup.jpg", use_column_width=True)
+except FileNotFoundError:
+    st.warning("Setup image not found. Please check if 'images/setup.jpg' exists.")
 
 # Skills section
 st.markdown('<h2 class="fadeIn">My Skills</h2>', unsafe_allow_html=True)
@@ -157,7 +253,10 @@ gallery_images = [f"images/g{i}.jpg" for i in range(1, 3)]
 cols = st.columns(3)
 for i, image in enumerate(gallery_images):
     with cols[i % 3]:
-        st.image(image, use_column_width=True)
+        try:
+            st.image(image, use_column_width=True)
+        except FileNotFoundError:
+            st.warning(f"Image not found: {image}")
 
 # Contact section
 st.markdown("---")
@@ -170,13 +269,3 @@ st.markdown("---")
 st.markdown('<h2 class="fadeIn">Thank You for Visiting!</h2>', unsafe_allow_html=True)
 st.markdown('<p class="fadeIn">Feel free to connect with me on <a href="https://www.linkedin.com/in/your-linkedin-username" target="_blank">LinkedIn</a> or follow me on <a href="https://twitter.com/your-twitter-username" target="_blank">Twitter</a>.</p>', unsafe_allow_html=True)
 st.markdown('<p class="fadeIn">Stay tuned for more updates and projects!</p>', unsafe_allow_html=True)
-
-# Debug information
-st.markdown("---")
-st.markdown('<h2 class="fadeIn">Debug Information</h2>', unsafe_allow_html=True)
-st.write("Current working directory:", os.getcwd())
-image_path = "images/murtaza.png"
-if os.path.exists(image_path):
-    st.write(f"Image file found: {image_path}")
-else:
-    st.write(f"Image file not found: {image_path}")
